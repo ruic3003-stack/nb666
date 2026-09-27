@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>登山赛车 · 无限模式</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #0a1628;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    touch-action: none;
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+  #wrap {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #game {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #5dade2;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  #hud {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: max(8px, env(safe-area-inset-top)) 10px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 6px;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .hud-box {
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #fff;
+    padding: 5px 10px;
+    border-radius: 14px;
+    font-size: clamp(11px, 3.2vw, 14px);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    flex-shrink: 1;
+    min-width: 0;
+  }
+  .hud-box .gold { color: #f1c40f; }
+  #fuel-wrap {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 1;
+    min-width: 0;
+  }
+  #fuel-bar-outer {
+    width: clamp(48px, 16vw, 88px);
+    height: 11px;
+    background: rgba(0,0,0,0.4);
+    border-radius: 6px;
+    border: 1.5px solid rgba(255,255,255,0.5);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  #fuel-bar {
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg, #e74c3c 0%, #f39c12 45%, #27ae60 100%);
+    border-radius: 5px;
+    transition: width 0.1s linear;
+  }
+
+  #controls {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 0 14px max(16px, env(safe-area-inset-bottom));
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .ctrl {
+    pointer-events: auto;
+    width: clamp(68px, 20vw, 92px);
+    height: clamp(68px, 20vw, 92px);
+    border-radius: 16px;
+    background: linear-gradient(160deg, #f0f0f0, #c8c8c8);
+    border: 3px solid #bbb;
+    box-shadow: 0 5px 0 #999, 0 8px 16px rgba(0,0,0,0.35);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    cursor: pointer;
+    transition: transform 0.06s, box-shadow 0.06s;
+  }
+  .ctrl.pressed {
+    transform: translateY(4px);
+    box-shadow: 0 1px 0 #999, 0 3px 8px rgba(0,0,0,0.3);
+  }
+  .ctrl .dots {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+  .ctrl .dot {
+    width: clamp(9px, 2.8vw, 13px);
+    height: clamp(9px, 2.8vw, 13px);
+    border-radius: 50%;
+    background: #2c3e50;
+  }
+  .ctrl .lbl {
+    font-size: clamp(12px, 3.5vw, 15px);
+    font-weight: 700;
+    color: #2c3e50;
+  }
+
+  #tip {
+    position: absolute;
+    left: 50%;
+    bottom: clamp(100px, 26vw, 140px);
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.65);
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 12px;
+    font-size: clamp(11px, 3vw, 13px);
+    text-align: center;
+    max-width: 90%;
+    line-height: 1.4;
+    pointer-events: none;
+    z-index: 9;
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  #tip.show { opacity: 1; }
+
+  #overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(10,22,40,0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    color: #fff;
+    text-align: center;
+    padding: 20px;
+  }
+  #overlay.hide { display: none; }
+  #overlay h1 {
+    font-size: clamp(24px, 6.5vw, 40px);
+    margin-bottom: 6px;
+    text-shadow: 0 3px 10px rgba(0,0,0,0.5);
+  }
+  #overlay .sub {
+    font-size: clamp(12px, 3.3vw, 15px);
+    opacity: 0.8;
+    margin-bottom: 4px;
+  }
+  #overlay .score-big {
+    font-size: clamp(24px, 6.5vw, 32px);
+    color: #f1c40f;
+    margin: 14px 0 4px;
+    font-weight: 700;
+  }
+  #overlay .score-sub {
+    font-size: clamp(12px, 3.3vw, 14px);
+    opacity: 0.75;
+  }
+  #btn-start {
+    margin-top: 22px;
+    padding: 12px 40px;
+    font-size: clamp(15px, 4.2vw, 19px);
+    font-weight: 700;
+    border: none;
+    border-radius: 50px;
+    background: linear-gradient(135deg, #ff6b35, #f7931e);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 6px 24px rgba(255,107,53,0.45);
+  }
+  #btn-start:active { transform: scale(0.96); }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="game">
+    <canvas id="cv"></canvas>
+
+    <div id="hud">
+      <div class="hud-box">
+        <span>🪙</span>
+        <span class="gold" id="coinTxt">0</span>
+        <span style="opacity:.4">|</span>
+        <span id="distTxt">0</span><span style="opacity:.6;font-size:0.85em">m</span>
+        <span style="opacity:.35">|</span>
+        <span style="opacity:.7;font-size:0.85em">最佳 <span id="bestTxt">0</span></span>
+      </div>
+      <div id="fuel-wrap">
+        <div class="hud-box" style="padding:4px 8px">⛽</div>
+        <div id="fuel-bar-outer"><div id="fuel-bar"></div></div>
+      </div>
+    </div>
+
+    <div id="tip">空中松手：角动量守恒，会保持旋转<br>油门/刹车改变力矩 · 着地后旋转被地面吃掉</div>
+
+    <div id="controls">
+      <div class="ctrl" id="btnBrake">
+        <div class="dots">
+          <div class="dot"></div><div class="dot"></div>
+          <div class="dot"></div><div class="dot"></div>
+        </div>
+        <div class="lbl">刹车</div>
+      </div>
+      <div class="ctrl" id="btnGas">
+        <div class="dots">
+          <div class="dot"></div><div class="dot"></div>
+          <div class="dot"></div><div class="dot"></div>
+        </div>
+        <div class="lbl">油门</div>
+      </div>
+    </div>
+
+    <div id="overlay">
+      <h1>🏔 登山赛车</h1>
+      <p class="sub">无限赛道 · 越远越难 · 看你能跑多远</p>
+      <p class="sub" style="font-size:12px;opacity:.5">灵感来自 Hill Climb Racing</p>
+      <button id="btn-start">开始游戏</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('cv');
+  const ctx = canvas.getContext('2d');
+  const gameEl = document.getElementById('game');
+
+  let W = 0, H = 0, dpr = 1;
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    W = gameEl.clientWidth;
+    H = gameEl.clientHeight;
+    canvas.width = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', () => setTimeout(resize, 120));
+  resize();
+
+  const bg = new Image();
+  bg.src = 'bg.jpg';
+  let bgReady = false;
+  bg.onload = () => { bgReady = true; };
+
+  const scooterImg = new Image();
+  scooterImg.src = 'scooter.png';
+  let scooterReady = false;
+  scooterImg.onload = () => { scooterReady = true; };
+
+  // ===== 无限地形 =====
+  const SEG = 40;
+  const terrain = [];
+  let nextSegIdx = 0;
+
+  function difficulty(segIdx) {
+    const t = segIdx / 160;
+    return {
+      amp: 38 + t * 95 + Math.min(t * t * 18, 70),
+      freq: 0.048 + Math.min(t * 0.028, 0.055),
+      steep: Math.min(0.32 + t * 0.45, 1.15),
+      gapChance: Math.min(0.015 + t * 0.035, 0.11)
+    };
+  }
+
+  function genOneSegment(segIdx) {
+    const d = difficulty(segIdx);
+    const prevY = terrain.length ? terrain[terrain.length - 1].y : H * 0.62;
+    const n1 = Math.sin(segIdx * d.freq) * d.amp;
+    const n2 = Math.sin(segIdx * d.freq * 2.3 + 1.7) * d.amp * 0.42;
+    const n3 = Math.sin(segIdx * d.freq * 0.37 + 0.6) * d.amp * 0.65;
+    let target = H * 0.52 + n1 + n2 + n3;
+    if (Math.random() < d.gapChance && segIdx > 25) {
+      target += (Math.random() > 0.5 ? 1 : -1) * d.amp * d.steep * 1.7;
+    }
+    const maxStep = 16 + d.steep * 28;
+    let y = prevY + Math.max(-maxStep, Math.min(maxStep, target - prevY));
+    y = Math.max(H * 0.10, Math.min(H * 0.90, y));
+    return { x: segIdx * SEG, y };
+  }
+
+  function ensureTerrain(aroundX) {
+    const needTo = Math.floor((aroundX + W * 2.8) / SEG) + 6;
+    while (nextSegIdx <= needTo) {
+      terrain.push(genOneSegment(nextSegIdx));
+      nextSegIdx++;
+    }
+    while (terrain.length > 2 && terrain[0].x < aroundX - W * 2.2) {
+      terrain.shift();
+    }
+  }
+
+  function groundY(x) {
+    if (terrain.length < 2) return H * 0.62;
+    let lo = 0, hi = terrain.length - 1;
+    while (lo < hi - 1) {
+      const mid = (lo + hi) >> 1;
+      if (terrain[mid].x < x) lo = mid; else hi = mid;
+    }
+    const a = terrain[lo], b = terrain[Math.min(lo + 1, terrain.length - 1)];
+    if (b.x === a.x) return a.y;
+    const t = (x - a.x) / (b.x - a.x);
+    return a.y + (b.y - a.y) * Math.max(0, Math.min(1, t));
+  }
+  function groundAngle(x) {
+    return Math.atan2(groundY(x + 16) - groundY(x - 16), 32);
+  }
+
+  // 金币：整齐弧线，好捡
+  const coins = [];
+  let lastCoinSeg = -10;
+  function spawnCoinsNear(segIdx) {
+    if (segIdx <= lastCoinSeg) return;
+    for (let s = lastCoinSeg + 1; s <= segIdx; s++) {
+      if (s < 8) continue;
+      // 每隔固定间距放一串整齐的弧线金币
+      if (s % 7 === 0) {
+        const count = 4 + (s % 3); // 4~6 个
+        const baseH = 36 + (s % 5) * 6;
+        for (let k = 0; k < count; k++) {
+          const x = s * SEG + k * 26;
+          const gy = groundY(x);
+          // 平滑弧线：中间高两边低
+          const arc = Math.sin((k / (count - 1 || 1)) * Math.PI) * 28;
+          coins.push({ x, y: gy - baseH - arc, got: false, r: 20 });
+        }
+      }
+    }
+    lastCoinSeg = segIdx;
+    while (coins.length && coins[0].x < camX - W) coins.shift();
+  }
+
+  // 油桶：更频繁，回油更多，真正有用
+  const fuelCans = [];
+  let lastFuelSeg = 0;
+  function spawnFuelNear(segIdx) {
+    const interval = 55; // 更密
+    while (lastFuelSeg + interval < segIdx + 25) {
+      lastFuelSeg += interval;
+      fuelCans.push({ x: lastFuelSeg * SEG, y: 0, got: false });
+    }
+    for (const f of fuelCans) {
+      if (!f.got) f.y = groundY(f.x) - 40;
+    }
+    while (fuelCans.length && fuelCans[0].x < camX - W) fuelCans.shift();
+  }
+
+  // 小车
+  const car = {
+    x: 120, y: 0, vx: 0, vy: 0,
+    angle: 0, av: 0, wheelRot: 0,
+    onGround: false, rearDown: false, frontDown: false, noseUp: false
+  };
+
+  let state = 'menu';
+  let score = 0, dist = 0, fuel = 100;
+  let camX = 0, camY = 0;
+  let gas = false, brake = false;
+  let tipTimer = 0;
+  let bestDist = parseInt(localStorage.getItem('hc_best') || '0', 10);
+
+  function reset() {
+    terrain.length = 0;
+    nextSegIdx = 0;
+    coins.length = 0;
+    fuelCans.length = 0;
+    lastCoinSeg = -10;
+    lastFuelSeg = 0;
+
+    ensureTerrain(400);
+    for (let i = 0; i < 50; i++) ensureTerrain(i * SEG + 200);
+
+    car.x = 120;
+    car.y = groundY(120) - 20;
+    car.vx = 0; car.vy = 0;
+    car.angle = 0; car.av = 0;
+    car.wheelRot = 0;
+    car.onGround = true;
+    score = 0; dist = 0; fuel = 100;
+    camX = car.x - W * 0.28;
+    camY = car.y - H * 0.55;
+    gas = false; brake = false;
+    tipTimer = 5;
+  }
+
+  function bind(el, isGas) {
+    const set = v => {
+      if (isGas) gas = v; else brake = v;
+      el.classList.toggle('pressed', v);
+    };
+    const on = e => { e.preventDefault(); set(true); };
+    const off = e => { e.preventDefault(); set(false); };
+    el.addEventListener('touchstart', on, { passive: false });
+    el.addEventListener('touchend', off);
+    el.addEventListener('touchcancel', off);
+    el.addEventListener('mousedown', on);
+    el.addEventListener('mouseup', off);
+    el.addEventListener('mouseleave', off);
+  }
+  bind(document.getElementById('btnGas'), true);
+  bind(document.getElementById('btnBrake'), false);
+
+  window.addEventListener('keydown', e => {
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') { gas = true; document.getElementById('btnGas').classList.add('pressed'); }
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') { brake = true; document.getElementById('btnBrake').classList.add('pressed'); }
+  });
+  window.addEventListener('keyup', e => {
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') { gas = false; document.getElementById('btnGas').classList.remove('pressed'); }
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') { brake = false; document.getElementById('btnBrake').classList.remove('pressed'); }
+  });
+
+  function update(dt) {
+    if (state !== 'play') return;
+
+    if (tipTimer > 0) {
+      tipTimer -= dt;
+      document.getElementById('tip').classList.toggle('show', tipTimer > 0);
+    }
+
+    // 油耗加快，油桶更有价值
+    if (gas) fuel -= 5.5 * dt;
+    fuel = Math.max(0, fuel);
+    if (fuel <= 0) { die('油用完了！'); return; }
+
+    car.vy += 520 * dt;
+
+    // 先判断前后轮是否着地（供油门/刹车使用）
+    {
+      const rb = 18, rd = 28, fd = 32; // 电动车轴距
+      const ga0 = groundAngle(car.x);
+      const rwX = car.x - Math.cos(car.angle) * rd;
+      const rwY = car.y - Math.sin(car.angle) * rd + rb * 0.9;
+      const fwX = car.x + Math.cos(car.angle) * fd;
+      const fwY = car.y + Math.sin(car.angle) * fd + rb * 0.9;
+      car.rearDown = rwY >= groundY(rwX) - 2;
+      car.frontDown = fwY >= groundY(fwX) - 2;
+      car.onGround = car.rearDown || car.frontDown;
+      car.noseUp = (car.angle - ga0) < -0.22;
+    }
+
+    // ========== 油门 / 刹车（最大化操控权）==========
+    if (gas) {
+      if (car.rearDown) {
+        const slope = groundAngle(car.x);
+        const steep = slope < 0 ? Math.min(1, (-slope) / 0.85) : 0;
+        const traction = 1 - steep * 0.28;
+        const power = 920 * traction;
+        car.vx += Math.cos(car.angle) * power * dt;
+        car.vy += Math.sin(car.angle) * power * dt;
+        car.av -= (5.5 + steep * 2.5) * dt;
+        car.wheelRot += (12 + steep * 5) * dt;
+      } else if (!car.frontDown && !car.rearDown) {
+        car.av -= 28.0 * dt; // 空中后空翻更快
+      }
+    }
+
+    if (brake) {
+      if (!car.frontDown && !car.rearDown) {
+        car.av += 30.0 * dt; // 空中前空翻更快
+      } else if (car.rearDown && (car.noseUp || !car.frontDown)) {
+        car.av += 32.0 * dt; // 压头更快
+        if (car.vx > 30) car.vx *= Math.pow(0.4, dt);
+        else car.vx -= Math.cos(car.angle) * 40 * dt;
+      } else if (car.onGround) {
+        car.av += 18.0 * dt;
+        if (car.vx > 15) {
+          car.vx *= Math.pow(0.03, dt);
+        } else {
+          car.vx -= Math.cos(car.angle) * 520 * dt;
+          car.vy -= Math.sin(car.angle) * 90 * dt;
+          car.wheelRot -= 14 * dt;
+        }
+      }
+    }
+
+    // 同按：几乎锁动力，专注调姿态
+    if (gas && brake) {
+      if (car.onGround) car.vx *= Math.pow(0.3, dt);
+      car.av *= 0.45;
+    }
+
+    // ========== 惯性 ==========
+    if (!gas && !brake) {
+      car.vx *= Math.pow(0.996, dt);
+      car.vy *= Math.pow(0.985, dt);
+    } else if (gas && car.onGround && !brake) {
+      car.vx *= Math.pow(0.90, dt);
+      car.vy *= Math.pow(0.92, dt);
+    }
+
+    // 限速
+    const maxSpd = 760;
+    const spd = Math.hypot(car.vx, car.vy);
+    if (spd > maxSpd) {
+      car.vx *= maxSpd / spd;
+      car.vy *= maxSpd / spd;
+    }
+
+    car.x += car.vx * dt;
+    car.y += car.vy * dt;
+
+    // 轮子旋转：正转 / 反转（倒车时反转）
+    car.wheelRot += car.vx * dt * 0.1;
+
+    ensureTerrain(car.x);
+    const curSeg = Math.floor(car.x / SEG);
+    spawnCoinsNear(curSeg + 35);
+    spawnFuelNear(curSeg + 35);
+
+    // ===== 地面碰撞（后轮着地，不磁吸）=====
+    // y 向下为正：ga < 0 = 往右上坡，ga > 0 = 往右下坡
+    const sample = 16;
+    const gy = groundY(car.x);
+    const gyRear = groundY(car.x - sample);
+    const gyFront = groundY(car.x + sample);
+    const ga = groundAngle(car.x);
+    const restBottom = 18; // 电动车轮子稍大
+    const convexity = ((gyRear + gyFront) * 0.5) - gy;
+    const isUphill = ga < -0.06;
+    const isDownhill = ga > 0.06;
+
+    // 后轮位置（与贴图轮距匹配）
+    const rearDist = 28;
+    const rwX = car.x - Math.cos(car.angle) * rearDist;
+    const rwY = car.y - Math.sin(car.angle) * rearDist + restBottom * 0.9;
+    const rwGY = groundY(rwX);
+    const noseUp = (car.angle - ga) < -0.28; // 相对路面明显抬头
+
+    if (rwY >= rwGY - 1.5) {
+      const pen = rwY - rwGY;
+      if (pen > 0) {
+        car.y -= pen;
+        if (car.vy > 0) car.vy *= 0.2;
+      }
+      car.onGround = true;
+
+      // ★ 坡道重力 + 上坡额外摩擦
+      // ga < 0 上坡（画面往上）→ 强烈减速；ga > 0 下坡 → 加速
+      const g = 560; // 上坡有阻力，但缓坡仍可冲上去
+      const accelAlong = g * Math.sin(ga);
+      car.vx += Math.cos(ga) * accelAlong * dt;
+      car.vy += Math.sin(ga) * accelAlong * dt;
+      // 上坡额外摩擦：只在较陡时才明显
+      if (isUphill) {
+        const steep = Math.min(1, (-ga) / 0.7);
+        if (steep > 0.25) {
+          car.vx *= Math.pow(0.97 - steep * 0.06, dt);
+        }
+      }
+
+      // 上坡加油且已翘头 → 允许飞离地面，不磁吸
+      if (gas && isUphill && noseUp) {
+        car.onGround = false;
+        car.vy -= 120 * dt;
+      } else if (convexity > 11 && Math.abs(car.vx) > 260 && pen < 6) {
+        car.vy = -Math.min(300, convexity * 7 + Math.abs(car.vx) * 0.14);
+        car.onGround = false;
+        car.av -= convexity * 0.05;
+      } else if (!noseUp) {
+        const follow = (gas || brake) ? 0.04 : (convexity > 5 ? 0.10 : 0.22);
+        car.angle += (ga - car.angle) * Math.min(1, 2.5 * dt) * follow;
+        car.av *= 0.85;
+        if (!brake && !gas) car.vx *= Math.pow(0.988, dt);
+        else if (gas && !brake) car.vx *= Math.pow(0.91, dt);
+      } else {
+        // 翘头中
+        if (!gas && !brake) {
+          // 松手：重力拉车头回正，不会一直翘着
+          const tip = ga - car.angle;
+          car.av += tip * 14 * dt;
+          car.av *= Math.pow(0.65, dt);
+        } else {
+          car.av *= 0.95;
+        }
+        if (!brake && !gas) car.vx *= Math.pow(0.990, dt);
+      }
+    } else {
+      car.onGround = false;
+    }
+
+    // 只有踩油门上坡才额外抬头；松手不保持翘头
+    if (car.onGround && isUphill && gas && !brake) {
+      car.av -= Math.abs(Math.sin(ga)) * 1.5 * dt;
+    }
+
+    car.angle += car.av * dt;
+
+    // ===== 角动量守恒：仅空中松手时成立 =====
+    if (!car.onGround) {
+      if (!gas && !brake) {
+        car.av *= Math.pow(0.995, dt);
+      } else if (gas && brake) {
+        car.av *= Math.pow(0.98, dt);
+      } else {
+        car.av *= Math.pow(0.88, dt);
+      }
+      const maxSpin = 14;
+      if (car.av > maxSpin) car.av = maxSpin;
+      if (car.av < -maxSpin) car.av = -maxSpin;
+    } else {
+      // 着地：角动量不守恒，松手时车身向路面回正
+      car.av *= Math.pow(0.50, dt);
+      if (!gas && !brake) {
+        car.angle += (ga - car.angle) * Math.min(1, 6 * dt) * 0.4;
+      }
+    }
+
+
+    // ===== 失败判定：人物头部触地 =====
+    // 头部相对车身大约在 (-2, -20) 附近（绘制时的位置）
+    // 电动车座椅上方作为“头部”碰撞点
+    // 骑手头部大约在车座上方（相对车身中心）
+    const headLocalX = -8;
+    const headLocalY = -42;
+    const cosA = Math.cos(car.angle);
+    const sinA = Math.sin(car.angle);
+    const headX = car.x + headLocalX * cosA - headLocalY * sinA;
+    const headY = car.y + headLocalX * sinA + headLocalY * cosA;
+    const headGround = groundY(headX);
+    if (headY >= headGround - 2) {
+      die('头部撞地！');
+      return;
+    }
+
+    // 金币
+    for (const c of coins) {
+      if (c.got) continue;
+      const dx = car.x - c.x, dy = car.y - c.y;
+      if (dx * dx + dy * dy < (c.r + 32) ** 2) {
+        c.got = true;
+        score += 5;
+      }
+    }
+
+    // 油桶
+    for (const f of fuelCans) {
+      if (f.got) continue;
+      const dx = car.x - f.x, dy = car.y - f.y;
+      if (dx * dx + dy * dy < 70 ** 2) {
+        f.got = true;
+        fuel = Math.min(100, fuel + 70);
+        score += 30;
+      }
+    }
+
+    dist = Math.max(0, Math.floor((car.x - 120) / 10));
+    if (dist > bestDist) {
+      bestDist = dist;
+      try { localStorage.setItem('hc_best', String(bestDist)); } catch(e) {}
+    }
+
+    // ★ 相机：跟随 + 速度预判，更顺滑
+    const lookAhead = Math.max(-80, Math.min(120, car.vx * 0.12));
+    const targetCamX = car.x - W * 0.30 + lookAhead;
+    const targetCamY = car.y - H * 0.56;
+    camX += (targetCamX - camX) * Math.min(1, 4.2 * dt);
+    camY += (targetCamY - camY) * Math.min(1, 3.8 * dt);
+
+    if (car.y > camY + H + 220) die('掉下去了！');
+  }
+
+  function draw() {
+    if (bgReady) {
+      const scale = Math.max(W / bg.width, H / bg.height) * 1.35;
+      const bw = bg.width * scale;
+      const bh = bg.height * scale;
+      const ox = -((camX * 0.07) % bw);
+      const oy = -(camY * 0.035);
+      ctx.drawImage(bg, ox, oy + (H - bh) * 0.25, bw, bh);
+      if (ox + bw < W) ctx.drawImage(bg, ox + bw, oy + (H - bh) * 0.25, bw, bh);
+      ctx.fillStyle = 'rgba(0,18,40,0.1)';
+      ctx.fillRect(0, 0, W, H);
+    } else {
+      const g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#2e86c1');
+      g.addColorStop(0.55, '#5dade2');
+      g.addColorStop(1, '#aed6f1');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    ctx.save();
+    ctx.translate(-camX, -camY);
+
+    if (terrain.length >= 2) {
+      ctx.beginPath();
+      const first = terrain[0];
+      ctx.moveTo(first.x - 80, first.y + H * 1.5);
+      for (const p of terrain) ctx.lineTo(p.x, p.y);
+      const last = terrain[terrain.length - 1];
+      ctx.lineTo(last.x + 80, last.y + H * 1.5);
+      ctx.closePath();
+      ctx.fillStyle = '#1a4d2e';
+      ctx.fill();
+
+      ctx.beginPath();
+      for (let i = 0; i < terrain.length; i++) {
+        const p = terrain[i];
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.strokeStyle = '#2d7a3a';
+      ctx.lineWidth = 8;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+      ctx.strokeStyle = '#4caf50';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    }
+
+    for (const c of coins) {
+      if (c.got) continue;
+      if (c.x < camX - 30 || c.x > camX + W + 30) continue;
+      if (c.y < camY - 30 || c.y > camY + H + 30) continue;
+      drawCoin(c.x, c.y);
+    }
+
+    for (const f of fuelCans) {
+      if (f.got) continue;
+      if (f.x < camX - 30 || f.x > camX + W + 30) continue;
+      drawFuel(f.x, f.y);
+    }
+
+    drawCar();
+    ctx.restore();
+
+    document.getElementById('coinTxt').textContent = score;
+    document.getElementById('distTxt').textContent = dist;
+    document.getElementById('bestTxt').textContent = bestDist;
+    document.getElementById('fuel-bar').style.width = fuel + '%';
+  }
+
+  function drawCoin(x, y) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.beginPath();
+    ctx.arc(0, 0, 11, 0, Math.PI * 2);
+    ctx.fillStyle = '#f1c40f';
+    ctx.fill();
+    ctx.strokeStyle = '#d4a017';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, 6.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#f9e79f';
+    ctx.fill();
+    ctx.fillStyle = '#b7950b';
+    ctx.font = 'bold 10px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('$', 0, 1);
+    ctx.restore();
+  }
+
+  function drawFuel(x, y) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = '#e74c3c';
+    roundRect(-13, -17, 26, 34, 3);
+    ctx.fill();
+    ctx.fillStyle = '#c0392b';
+    roundRect(-13, -17, 26, 8, 3);
+    ctx.fill();
+    ctx.strokeStyle = '#922b21';
+    ctx.lineWidth = 2.8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-4, -17); ctx.lineTo(-4, -24); ctx.lineTo(4, -24); ctx.lineTo(4, -17);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillRect(-9, -6, 5, 16);
+    ctx.restore();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawCar() {
+    ctx.save();
+    ctx.translate(car.x, car.y);
+    ctx.rotate(car.angle);
+
+    // 影子
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(0, 18, 36, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (scooterReady) {
+      // 直接使用你的照片贴图
+      const drawW = 130;
+      const drawH = drawW * (scooterImg.height / scooterImg.width);
+      ctx.drawImage(scooterImg, -drawW * 0.40, -drawH * 0.82, drawW, drawH);
+    } else {
+      ctx.fillStyle = '#c0c5ce';
+      ctx.fillRect(-40, -16, 80, 24);
+      ctx.fillStyle = '#2c3e50';
+      ctx.fillRect(-8, -22, 36, 10);
+      drawWheel(-24, 12, car.wheelRot);
+      drawWheel(28, 12, car.wheelRot);
+    }
+    ctx.restore();
+  }
+
+  function drawWheel(wx, wy, rot) {
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.rotate(rot);
+    ctx.beginPath();
+    ctx.arc(0, 0, 9.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, 0, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#7f8c8d';
+    ctx.fill();
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(a) * 7.5, Math.sin(a) * 7.5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  const overlay = document.getElementById('overlay');
+  function showOverlay(html) {
+    overlay.innerHTML = html;
+    overlay.classList.remove('hide');
+    const btn = document.getElementById('btn-start');
+    if (btn) btn.onclick = start;
+  }
+
+  function die(msg) {
+    state = 'dead';
+    const isNew = dist >= bestDist && dist > 0;
+    showOverlay(`
+      <h1>💥 游戏结束</h1>
+      <p class="sub">${msg}</p>
+      <div class="score-big">🪙 ${score}</div>
+      <p class="score-sub">行驶 ${dist} m${isNew ? ' · 🎉 新纪录！' : ''}</p>
+      <p class="score-sub" style="opacity:.6">最佳 ${bestDist} m</p>
+      <button id="btn-start">再来一次</button>
+    `);
+  }
+
+  function start() {
+    reset();
+    state = 'play';
+    overlay.classList.add('hide');
+    document.getElementById('tip').classList.add('show');
+  }
+
+  document.getElementById('btn-start').onclick = start;
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min((now - last) / 1000, 0.04);
+    last = now;
+    if (terrain.length === 0) ensureTerrain(300);
+    update(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
