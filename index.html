@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>登山赛车 · 无限模式</title>
+<title>登山赛车九号版🤣</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -243,9 +243,9 @@
     </div>
 
     <div id="overlay">
-      <h1>🏔 登山赛车</h1>
-      <p class="sub">无限赛道 · 越远越难 · 看你能跑多远</p>
-      <p class="sub" style="font-size:12px;opacity:.5">灵感来自 Hill Climb Racing</p>
+      <h1>🏔 登山赛车九号版</h1>
+      <p class="sub">主包随便弄的测试版，有任何问题随时反馈更新</p>
+      <p class="sub" style="font-size:12px;opacity:.5">主包邮箱ruic3003@gmail.com</p>
       <button id="btn-start">开始游戏</button>
     </div>
   </div>
@@ -454,7 +454,7 @@
     // 油耗加快，油桶更有价值
     if (gas) fuel -= 5.5 * dt;
     fuel = Math.max(0, fuel);
-    if (fuel <= 0) { die('油用完了！'); return; }
+    if (fuel <= 0) { die('电用完了！还骑你老牧'); return; }
 
     car.vy += 520 * dt;
 
@@ -879,7 +879,7 @@
     state = 'dead';
     const isNew = dist >= bestDist && dist > 0;
     showOverlay(`
-      <h1>💥 游戏结束</h1>
+      <h1>摔死了🤣</h1>
       <p class="sub">${msg}</p>
       <div class="score-big">🪙 ${score}</div>
       <p class="score-sub">行驶 ${dist} m${isNew ? ' · 🎉 新纪录！' : ''}</p>
